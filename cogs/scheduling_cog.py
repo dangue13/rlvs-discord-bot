@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Dict, List
+from typing import Dict
 
 import discord
 from discord.ext import commands
@@ -13,18 +13,10 @@ from discord.ext import commands
 from storage import store
 
 
-# ============================================================
-# Helpers
-# ============================================================
-
 def _fmt_match(m: Dict) -> str:
     ts = int(datetime.fromisoformat(m["scheduled_iso"]).timestamp())
     return f"• **{m['team']}** vs **{m['opponent']}** — <t:{ts}:F> (`{m['id']}`)"
 
-
-# ============================================================
-# Schedule Board
-# ============================================================
 
 async def update_schedule_board(bot: commands.Bot, guild_id: int, league_key: str):
     channel_id = store.get_schedule_channel(guild_id, league_key)
@@ -32,9 +24,10 @@ async def update_schedule_board(bot: commands.Bot, guild_id: int, league_key: st
         return
 
     channel = bot.get_channel(channel_id) or await bot.fetch_channel(channel_id)
+
     matches = [
         m for m in store.get_scheduled_matches()
-        if m["guild_id"] == guild_id and m["league"] == league_key
+        if m.get("guild_id") == guild_id and m.get("league") == league_key
     ]
 
     lines = [_fmt_match(m) for m in matches] or ["_No matches scheduled._"]
@@ -59,17 +52,10 @@ async def update_schedule_board(bot: commands.Bot, guild_id: int, league_key: st
     store.set_schedule_message_id(guild_id, league_key, msg.id)
 
 
-# ============================================================
-# Public Helper
-# ============================================================
-
 async def post_matches_for_league(bot: commands.Bot, guild_id: int, league_key: str):
     await update_schedule_board(bot, guild_id, league_key)
 
 
-# ============================================================
-# Setup
-# ============================================================
-
 async def setup(bot: commands.Bot):
-    pass
+    # Helper module only (no slash commands here)
+    return

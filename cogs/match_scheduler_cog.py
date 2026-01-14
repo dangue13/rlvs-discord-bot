@@ -206,7 +206,6 @@ class MatchSchedulerCog(commands.Cog):
     # ----------------------------
     # /schedule
     # ----------------------------
-    @app_commands.guilds(discord.Object(id=settings.guild_id))
     @app_commands.command(name="schedule", description="Schedule a match")
     @app_commands.choices(league=_league_choices())
     @app_commands.autocomplete(team=_team_autocomplete, opponent=_team_autocomplete)
@@ -261,7 +260,6 @@ class MatchSchedulerCog(commands.Cog):
     # ----------------------------
     # /postmatches
     # ----------------------------
-    @app_commands.guilds(discord.Object(id=settings.guild_id))
     @app_commands.command(
         name="postmatches",
         description="Post scheduled matches for all leagues",
@@ -281,7 +279,6 @@ class MatchSchedulerCog(commands.Cog):
     # ----------------------------
     # /cancelmatch
     # ----------------------------
-    @app_commands.guilds(discord.Object(id=settings.guild_id))
     @app_commands.command(
         name="cancelmatch",
         description="Cancel a scheduled match by ID",
@@ -320,6 +317,3 @@ class MatchSchedulerCog(commands.Cog):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(MatchSchedulerCog(bot))
-
-
-

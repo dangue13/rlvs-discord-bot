@@ -8,7 +8,6 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
-from config import settings
 from leagues import configured_leagues
 from storage import store
 from services.standings import (
@@ -28,13 +27,15 @@ class StandingsCog(commands.Cog):
     # ----------------------------
     # /poststandings
     # ----------------------------
-    @app_commands.guilds(discord.Object(id=settings.guild_id))
     @app_commands.command(
         name="poststandings",
         description="Create (or find) the standings message(s) and update them",
     )
     async def poststandings(self, interaction: discord.Interaction):
-        await interaction.response.send_message("Posting/updating standings…", ephemeral=True)
+        await interaction.response.send_message(
+            "Posting/updating standings…",
+            ephemeral=True,
+        )
 
         leagues = configured_leagues()
         if not leagues:
@@ -46,7 +47,7 @@ class StandingsCog(commands.Cog):
 
         guild_id = int(interaction.guild_id or 0)
 
-        results = []
+        results: list[str] = []
         for league in leagues:
             try:
                 key, embed = await fetch_standings_embed_for_league(league)
@@ -63,13 +64,15 @@ class StandingsCog(commands.Cog):
     # ----------------------------
     # /forcecheck
     # ----------------------------
-    @app_commands.guilds(discord.Object(id=settings.guild_id))
     @app_commands.command(
         name="forcecheck",
         description="Force update standings for all leagues (even if unchanged)",
     )
     async def forcecheck(self, interaction: discord.Interaction):
-        await interaction.response.send_message("Force updating standings…", ephemeral=True)
+        await interaction.response.send_message(
+            "Force updating standings…",
+            ephemeral=True,
+        )
 
         leagues = configured_leagues()
         if not leagues:
@@ -81,7 +84,7 @@ class StandingsCog(commands.Cog):
 
         guild_id = int(interaction.guild_id or 0)
 
-        results = []
+        results: list[str] = []
         for league in leagues:
             try:
                 key, embed = await fetch_standings_embed_for_league(league)
@@ -102,6 +105,3 @@ class StandingsCog(commands.Cog):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(StandingsCog(bot))
-
-
-
