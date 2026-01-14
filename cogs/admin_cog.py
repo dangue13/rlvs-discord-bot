@@ -306,11 +306,11 @@ class AdminsCog(commands.Cog):
                 f"❌ Resync failed: {e}",
                 ephemeral=True,
             )
-
-
 # ============================================================
 # Setup
 # ============================================================
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(AdminsCog(bot))
+
+

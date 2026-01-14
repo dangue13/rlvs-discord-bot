@@ -135,5 +135,12 @@ class MatchRemindersCog(commands.Cog):
         await self.bot.wait_until_ready()
 
 
+# ============================================================
+# Setup
+# ============================================================
+
 async def setup(bot: commands.Bot):
     await bot.add_cog(MatchRemindersCog(bot))
+
+
+

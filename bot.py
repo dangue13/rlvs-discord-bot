@@ -53,8 +53,9 @@ class RLVSBot(commands.Bot):
         try:
             if guild_id:
                 guild = discord.Object(id=guild_id)
+                self.tree.clear_commands(guild=guild)
                 await self.tree.sync(guild=guild)
-                print(f"[sync] synced commands to guild_id={guild_id}", flush=True)
+                print(f"[sync] cleared+synced commands to guild_id={guild_id}", flush=True)
             else:
                 await self.tree.sync()
                 print("[sync] synced commands globally", flush=True)
