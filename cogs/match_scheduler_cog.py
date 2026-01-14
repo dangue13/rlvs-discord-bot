@@ -23,6 +23,10 @@ from cogs.scheduling_cog import update_schedule_board, post_matches_for_league
 from services.http import http
 from services.standings import parse_standings
 
+import asyncio
+import traceback
+
+
 
 # ============================================================
 # Constants
@@ -202,6 +206,24 @@ def _find_match(
 class MatchSchedulerCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+    async def cog_app_command_error(
+        self,
+        interaction: discord.Interaction,
+        error: app_commands.AppCommandError,
+    ):
+        # Always print the traceback to Render logs
+        traceback.print_exception(type(error), error, error.__traceback__)
+
+        # Always respond so Discord doesn't spin forever
+        msg = f"❌ Error: {type(error).__name__}: {error}"
+        try:
+            if interaction.response.is_done():
+                await interaction.followup.send(msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(msg, ephemeral=True)
+        except Exception:
+            pass
+
 
     # ----------------------------
     # /schedule
@@ -220,6 +242,7 @@ class MatchSchedulerCog(commands.Cog):
     ):
         await interaction.response.defer(ephemeral=True)
 
+        # Fail Response
         try:
             if not isinstance(interaction.user, discord.Member):
                 await interaction.followup.send("This command must be used in a server.", ephemeral=True)
@@ -253,8 +276,7 @@ class MatchSchedulerCog(commands.Cog):
             matches.append(rec)
             _save_matches(matches)
 
-            # Hard timeout so it can’t “think” forever
-            import asyncio
+            # Hard timeout
             await asyncio.wait_for(
                 update_schedule_board(self.bot, guild_id, league_key),
                 timeout=10,
@@ -268,14 +290,18 @@ class MatchSchedulerCog(commands.Cog):
         except asyncio.TimeoutError:
             await interaction.followup.send(
                 "⚠️ Scheduled match was saved, but updating the schedule board timed out. "
-                "Check your configured schedule channel permissions / message ID.",
+                "This is usually missing permissions in the schedule channel (Send Messages, Embed Links, Read Message History).",
                 ephemeral=True,
             )
 
         except Exception as e:
-            # You will see this in Discord immediately
-            await interaction.followup.send(f"❌ Failed to schedule: `{type(e).__name__}: {e}`", ephemeral=True)
+            # Respond even on unexpected errors
+            await interaction.followup.send(
+                f"❌ Failed to schedule: `{type(e).__name__}: {e}`",
+                ephemeral=True,
+            )
             raise
+
 
 
     # ----------------------------
