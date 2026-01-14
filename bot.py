@@ -52,14 +52,18 @@ async def setup_hook():
     if settings.guild_id:
         guild = discord.Object(id=int(settings.guild_id))
 
-        # Push global commands into the guild (instant availability)
-        bot.tree.copy_global_to(guild=guild)
-
-        # Clear stale guild commands
+        # Clear Guild
         bot.tree.clear_commands(guild=guild)
 
+        # Copy Global
+        bot.tree.copy_global_to(guild=guild)
+
+        #sync guild
         synced = await bot.tree.sync(guild=guild)
-        print(f"[sync] cleared+synced {len(synced)} commands to guild_id={settings.guild_id}")
+        print(f"[sync] cleared+copied+synced {len(synced)} commands to guild_id={settings.guild_id}")
+
+        # debug
+        print("[tree] commands:", [c.name for c in bot.tree.get_commands()])
     else:
         synced = await bot.tree.sync()
         print(f"[sync] synced {len(synced)} commands globally")
