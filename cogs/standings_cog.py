@@ -5,7 +5,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 
-from leagues import configured_leagues, get_leagues
+from leagues import configured_leagues
 from storage import store
 from services.standings import fetch_standings_embed_for_league, upsert_league_standings_message
 
@@ -20,21 +20,17 @@ class StandingsCog(commands.Cog):
 
         leagues = configured_leagues()
         if not leagues:
-            msg = (
-                "No standings channels configured yet.\n"
-                "Set these in `.env` (use real integer channel IDs):\n"
-                "- CHAMPION_STANDINGS_CHANNEL_ID\n"
-                "- CHALLENGER_STANDINGS_CHANNEL_ID\n"
-            )
-            await interaction.followup.send(msg, ephemeral=True)
+            await interaction.followup.send("No leagues configured (missing standings URLs).", ephemeral=True)
             return
+
+        guild_id = int(interaction.guild_id or 0)
 
         results = []
         for league in leagues:
             try:
                 key, embed = await fetch_standings_embed_for_league(league)
                 store.set_last_hash(league.key, key)
-                msg = await upsert_league_standings_message(self.bot, league, embed)
+                msg = await upsert_league_standings_message(self.bot, guild_id, league, embed)
                 results.append(f"✅ {league.name}: updated (msg {msg.id})")
             except Exception as e:
                 results.append(f"❌ {league.name}: {e}")
@@ -47,18 +43,17 @@ class StandingsCog(commands.Cog):
 
         leagues = configured_leagues()
         if not leagues:
-            await interaction.followup.send(
-                "No standings channels configured yet (Champion/Challenger channel IDs are still standby).",
-                ephemeral=True
-            )
+            await interaction.followup.send("No leagues configured (missing standings URLs).", ephemeral=True)
             return
+
+        guild_id = int(interaction.guild_id or 0)
 
         results = []
         for league in leagues:
             try:
                 key, embed = await fetch_standings_embed_for_league(league)
                 store.set_last_hash(league.key, key)
-                await upsert_league_standings_message(self.bot, league, embed)
+                await upsert_league_standings_message(self.bot, guild_id, league, embed)
                 results.append(f"✅ {league.name}: forced update complete")
             except Exception as e:
                 results.append(f"❌ {league.name}: {e}")
@@ -68,4 +63,3 @@ class StandingsCog(commands.Cog):
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(StandingsCog(bot))
-

@@ -12,7 +12,7 @@ class League:
     key: str          # storage key, e.g. "champion"
     name: str         # display name
     standings_url: str
-    channel_id: int   # 0 means not configured
+    channel_id: int   # env fallback (0 means not configured)
 
 
 def get_leagues() -> List[League]:
@@ -34,7 +34,7 @@ def get_leagues() -> List[League]:
 
 def configured_leagues() -> List[League]:
     """
-    Only leagues with a real channel_id should auto-post.
-    'standby' in .env becomes channel_id=0 and will be skipped.
+    Return leagues that have a URL configured.
+    Channel routing is resolved per-guild at send time (admin config first, env fallback).
     """
-    return [l for l in get_leagues() if l.channel_id and l.standings_url]
+    return [l for l in get_leagues() if l.standings_url]

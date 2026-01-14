@@ -82,11 +82,11 @@ def parse_standings(html: str) -> List[Row]:
                 raise RuntimeError
 
             TEAM_COL = col("TEAM")
-            WL_COL = col("W-L", "W – L", "W/L")
-            GW_COL = col("GAMES WON", "WON")
-            GL_COL = col("GAMES LOST", "LOST")
-            PM_COL = col("+/-", "+/−", "+−", "DIFF")
-            GB_COL = col("GB")
+            WL_COL   = col("W-L", "W – L", "W/L")
+            GW_COL   = col("GAMES WON", "WON")
+            GL_COL   = col("GAMES LOST", "LOST")
+            PM_COL   = col("+/-", "+/−", "+−", "DIFF")
+            GB_COL   = col("GB")
 
             data_rows = rows[header_idx + 1 :]
         except Exception:
@@ -111,11 +111,11 @@ def parse_standings(html: str) -> List[Row]:
 
         rank = int(rank_raw)
         team = get_cell(cells, TEAM_COL)
-        wl = get_cell(cells, WL_COL)
-        gw = get_cell(cells, GW_COL, "0")
-        gl = get_cell(cells, GL_COL, "0")
-        pm = get_cell(cells, PM_COL, "0")
-        gb = get_cell(cells, GB_COL, "-")
+        wl   = get_cell(cells, WL_COL)
+        gw   = get_cell(cells, GW_COL, "0")
+        gl   = get_cell(cells, GL_COL, "0")
+        pm   = get_cell(cells, PM_COL, "0")
+        gb   = get_cell(cells, GB_COL, "-")
 
         if gb in {"—", ""}:
             gb = "-"
@@ -131,12 +131,7 @@ def parse_standings(html: str) -> List[Row]:
     return parsed
 
 
-def build_standings_embed(
-    rows: List[Row],
-    standings_url: str,
-    league_name: str,
-    top_n: int = 12,
-) -> Tuple[str, discord.Embed]:
+def build_standings_embed(rows: List[Row], standings_url: str, league_name: str, top_n: int = 12) -> Tuple[str, discord.Embed]:
     key = _sha(json.dumps(rows, ensure_ascii=False))
 
     lines: List[str] = []
@@ -173,15 +168,27 @@ async def _get_text_channel(bot: discord.Client, channel_id: int) -> discord.Tex
     return ch
 
 
+def _resolve_standings_channel_id(guild_id: int, league: League) -> int:
+    # Admin-configured per-guild channel takes priority; env is fallback
+    cid = store.get_standings_channel(guild_id, league.key)
+    if cid:
+        return int(cid)
+    if league.channel_id:
+        return int(league.channel_id)
+    return 0
+
+
 async def upsert_league_standings_message(
     bot: discord.Client,
+    guild_id: int,
     league: League,
     embed: discord.Embed,
 ) -> discord.Message:
-    if not league.channel_id:
+    channel_id = _resolve_standings_channel_id(guild_id, league)
+    if not channel_id:
         raise RuntimeError(f"{league.name} standings channel not configured yet.")
 
-    channel = await _get_text_channel(bot, league.channel_id)
+    channel = await _get_text_channel(bot, channel_id)
     existing_id: Optional[int] = store.get_standings_message_id(league.key)
 
     if existing_id:

@@ -17,24 +17,18 @@ print("Starting bot.py…")
 
 @bot.event
 async def setup_hook():
-    # Load cogs (each cog file must define: async def setup(bot): await bot.add_cog(...)
     await bot.load_extension("cogs.standings_cog")
     await bot.load_extension("cogs.match_scheduler_cog")
     await bot.load_extension("cogs.match_reminders_cog")
     await bot.load_extension("cogs.admin_cog")
     await bot.load_extension("cogs.scheduling_cog")
 
-    # Sync commands:
-    # - If GUILD_ID is set, ONLY sync to that guild (prevents “two commands” from global+guild).
-    # - If not set, sync globally.
     guild_id = getattr(settings, "guild_id", None)
 
     if guild_id:
         try:
             await bot.tree.sync(guild=discord.Object(id=int(guild_id)))
             print(f"[sync] Synced commands to guild_id={guild_id}")
-        except discord.Forbidden as e:
-            print(f"[sync] Forbidden syncing to guild_id={guild_id}: {e}")
         except Exception as e:
             print(f"[sync] Error syncing to guild_id={guild_id}: {e}")
     else:
@@ -48,18 +42,20 @@ async def setup_hook():
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user} (id={bot.user.id})")
-    try:
-        print("[guilds] Bot is in:")
-        for g in bot.guilds:
-            print(f" - {g.name} ({g.id})")
-    except Exception:
-        pass
 
 
 @tasks.loop(seconds=settings.poll_seconds)
 async def poll():
     leagues = configured_leagues()
     if not leagues:
+        return
+
+    # single-guild bot: use configured guild_id if provided, else first guild
+    guild_id = int(getattr(settings, "guild_id", 0) or 0)
+    if not guild_id and bot.guilds:
+        guild_id = int(bot.guilds[0].id)
+
+    if not guild_id:
         return
 
     for league in leagues:
@@ -70,7 +66,7 @@ async def poll():
                 continue
 
             store.set_last_hash(league.key, key)
-            await upsert_league_standings_message(bot, league, embed)
+            await upsert_league_standings_message(bot, guild_id, league, embed)
 
         except Exception as e:
             print(f"[poll] {league.name}: {e}")
