@@ -18,12 +18,10 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 print("BOOT: bot.py loaded", flush=True)
 
+_DID_SYNC = False
 
-@bot.event
-async def setup_hook():
-    print("BOOT: setup_hook start", flush=True)
 
-    # Load cogs one-by-one so you can see exactly which one fails
+async def _load_extensions() -> None:
     for ext in [
         "cogs.standings_cog",
         "cogs.match_scheduler_cog",
@@ -39,19 +37,36 @@ async def setup_hook():
             traceback.print_exc()
             raise
 
-    guild_id = getattr(settings, "guild_id", None)
+
+async def _sync_commands() -> None:
+    global _DID_SYNC
+    if _DID_SYNC:
+        return
+
+    guild_id = getattr(settings, "guild_id", 0) or 0
 
     try:
         if guild_id:
-            await bot.tree.sync(guild=discord.Object(id=int(guild_id)))
-            print(f"[sync] Synced commands to guild_id={guild_id}", flush=True)
+            g = discord.Object(id=int(guild_id))
+            bot.tree.clear_commands(guild=g)
+            await bot.tree.sync(guild=g)
+            print(f"[sync] cleared+synced guild commands to {guild_id}", flush=True)
         else:
             await bot.tree.sync()
-            print("[sync] Synced commands globally", flush=True)
+            print("[sync] synced global commands", flush=True)
+
+        _DID_SYNC = True
     except Exception as e:
         print(f"[sync] FAILED: {e}", flush=True)
         traceback.print_exc()
         raise
+
+
+@bot.event
+async def setup_hook():
+    print("BOOT: setup_hook start", flush=True)
+    await _load_extensions()
+    await _sync_commands()
 
     if not poll.is_running():
         poll.start()
@@ -78,7 +93,6 @@ async def poll():
     guild_id = int(getattr(settings, "guild_id", 0) or 0)
     if not guild_id and bot.guilds:
         guild_id = int(bot.guilds[0].id)
-
     if not guild_id:
         return
 
@@ -91,13 +105,11 @@ async def poll():
 
             store.set_last_hash(league.key, key)
             await upsert_league_standings_message(bot, guild_id, league, embed)
-
         except Exception as e:
             print(f"[poll] {league.name}: {e}", flush=True)
 
 
 def run():
-    # Force unbuffered stdout in some hosts
     try:
         sys.stdout.reconfigure(line_buffering=True)
     except Exception:
