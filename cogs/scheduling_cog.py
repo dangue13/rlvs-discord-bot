@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Dict
+from typing import Dict, List
 
 import discord
 from discord.ext import commands
@@ -13,18 +13,36 @@ from discord.ext import commands
 from storage import store
 
 
+# ============================================================
+# Helpers
+# ============================================================
+
 def _fmt_match(m: Dict) -> str:
     ts = int(datetime.fromisoformat(m["scheduled_iso"]).timestamp())
     return f"• **{m['team']}** vs **{m['opponent']}** — <t:{ts}:F> (`{m['id']}`)"
 
 
-async def update_schedule_board(bot: commands.Bot, guild_id: int, league_key: str):
+# ============================================================
+# Schedule Board
+# ============================================================
+
+async def update_schedule_board(
+    bot: commands.Bot,
+    guild_id: int,
+    league_key: str,
+):
     channel_id = store.get_schedule_channel(guild_id, league_key)
     if not channel_id:
+        print(f"[schedule_board] no schedule channel set for {league_key}")
         return
 
-    channel = bot.get_channel(channel_id) or await bot.fetch_channel(channel_id)
+    # Fetch channel safely
+    channel = bot.get_channel(channel_id)
+    if channel is None:
+        print(f"[schedule_board] fetching channel {channel_id} for league={league_key}")
+        channel = await bot.fetch_channel(channel_id)
 
+    # Load matches
     matches = [
         m for m in store.get_scheduled_matches()
         if m.get("guild_id") == guild_id and m.get("league") == league_key
@@ -39,23 +57,39 @@ async def update_schedule_board(bot: commands.Bot, guild_id: int, league_key: st
     )
     embed.timestamp = discord.utils.utcnow()
 
+    # Try to edit existing message
     msg_id = store.get_schedule_message_id(guild_id, league_key)
     if msg_id:
         try:
+            print(f"[schedule_board] editing message {msg_id} in channel {channel_id}")
             msg = await channel.fetch_message(msg_id)
             await msg.edit(embed=embed)
             return
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[schedule_board] edit failed, will post new: {type(e).__name__}: {e}")
 
+    # Post new message
+    print(f"[schedule_board] posting new schedule board in channel {channel_id}")
     msg = await channel.send(embed=embed)
     store.set_schedule_message_id(guild_id, league_key, msg.id)
 
 
-async def post_matches_for_league(bot: commands.Bot, guild_id: int, league_key: str):
+# ============================================================
+# Public Helper
+# ============================================================
+
+async def post_matches_for_league(
+    bot: commands.Bot,
+    guild_id: int,
+    league_key: str,
+):
     await update_schedule_board(bot, guild_id, league_key)
 
 
+# ============================================================
+# Setup
+# ============================================================
+
 async def setup(bot: commands.Bot):
-    # Helper module only (no slash commands here)
+    # Helper-only module (no slash commands here)
     return

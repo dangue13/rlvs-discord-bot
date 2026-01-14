@@ -148,7 +148,8 @@ def load_settings() -> Settings:
     except Exception:
         league_tz = timezone.utc
 
-    state_path = Path(os.getenv("STATE_PATH", "state.json"))
+    state_path = Path(os.getenv("STATE_PATH", "/var/data/state.json")).resolve()
+
 
     # ---- Org GM scheduling ----
     org_gm_role = (os.getenv("ORG_GM_ROLE", "Org GM") or "").strip().lower()

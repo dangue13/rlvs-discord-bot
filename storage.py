@@ -300,3 +300,5 @@ class StateStore:
 
 
 store = StateStore.load(settings.state_path)
+print(f"[store] using state file: {store.path}")
+

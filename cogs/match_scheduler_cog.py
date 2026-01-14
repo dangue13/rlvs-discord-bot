@@ -220,42 +220,63 @@ class MatchSchedulerCog(commands.Cog):
     ):
         await interaction.response.defer(ephemeral=True)
 
-        if not isinstance(interaction.user, discord.Member):
-            return
+        try:
+            if not isinstance(interaction.user, discord.Member):
+                await interaction.followup.send("This command must be used in a server.", ephemeral=True)
+                return
 
-        member = interaction.user
-        if not _can_use_scheduler(member):
-            return await interaction.followup.send("Permission denied.", ephemeral=True)
+            member: discord.Member = interaction.user
+            if not _can_use_scheduler(member):
+                await interaction.followup.send("Permission denied.", ephemeral=True)
+                return
 
-        lg = _league_by_key_or_name(league)
-        when = _parse_mmdd_time(date, time)
+            lg = _league_by_key_or_name(league)
+            when = _parse_mmdd_time(date, time)
 
-        matches = _load_matches()
-        match_id = _new_match_id({str(m.get("id", "")).upper() for m in matches})
+            matches = _load_matches()
+            match_id = _new_match_id({str(m.get("id", "")).upper() for m in matches})
 
-        guild_id = int(interaction.guild_id or 0)
-        league_key = lg.key.lower()
+            guild_id = int(interaction.guild_id or 0)
+            league_key = lg.key.lower()
 
-        rec = {
-            "id": match_id,
-            "league": league_key,
-            "week": store.get_current_week(guild_id, league_key),
-            "team": team,
-            "opponent": opponent,
-            "scheduled_iso": when.isoformat(),
-            "guild_id": guild_id,
-            "created_by": int(member.id),
-        }
+            rec = {
+                "id": match_id,
+                "league": league_key,
+                "week": store.get_current_week(guild_id, league_key),
+                "team": team,
+                "opponent": opponent,
+                "scheduled_iso": when.isoformat(),
+                "guild_id": guild_id,
+                "created_by": int(member.id),
+            }
 
-        matches.append(rec)
-        _save_matches(matches)
+            matches.append(rec)
+            _save_matches(matches)
 
-        await update_schedule_board(self.bot, guild_id, league_key)
+            # Hard timeout so it can’t “think” forever
+            import asyncio
+            await asyncio.wait_for(
+                update_schedule_board(self.bot, guild_id, league_key),
+                timeout=10,
+            )
 
-        await interaction.followup.send(
-            f"✅ **{team}** vs **{opponent}** scheduled for <t:{int(when.timestamp())}:F>",
-            ephemeral=True,
-        )
+            await interaction.followup.send(
+                f"✅ **{team}** vs **{opponent}** scheduled for <t:{int(when.timestamp())}:F> (`{match_id}`)",
+                ephemeral=True,
+            )
+
+        except asyncio.TimeoutError:
+            await interaction.followup.send(
+                "⚠️ Scheduled match was saved, but updating the schedule board timed out. "
+                "Check your configured schedule channel permissions / message ID.",
+                ephemeral=True,
+            )
+
+        except Exception as e:
+            # You will see this in Discord immediately
+            await interaction.followup.send(f"❌ Failed to schedule: `{type(e).__name__}: {e}`", ephemeral=True)
+            raise
+
 
     # ----------------------------
     # /postmatches
