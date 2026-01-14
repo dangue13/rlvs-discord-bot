@@ -1,3 +1,4 @@
+# cogs/admin_cog.py
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -7,6 +8,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+from config import settings
 from storage import store
 
 
@@ -146,17 +148,10 @@ class _SaveButton(discord.ui.Button):
         ch_id = self.parent_view.selected_channel_id
 
         if not t:
-            await interaction.response.send_message(
-                "Pick **what** you’re configuring first.",
-                ephemeral=True,
-            )
+            await interaction.response.send_message("Pick **what** you’re configuring first.", ephemeral=True)
             return
-
         if not ch_id:
-            await interaction.response.send_message(
-                "Pick a **channel** first.",
-                ephemeral=True,
-            )
+            await interaction.response.send_message("Pick a **channel** first.", ephemeral=True)
             return
 
         guild_id = self.parent_view.guild_id
@@ -164,16 +159,13 @@ class _SaveButton(discord.ui.Button):
         if t.kind == "standings":
             store.set_standings_channel(guild_id, t.league_key, ch_id)
             msg = f"✅ Saved: **Standings ({t.league_key})** → <#{ch_id}>"
-
         elif t.kind == "schedule":
             store.set_schedule_channel(guild_id, t.league_key, ch_id)
             msg = f"✅ Saved: **Schedule ({t.league_key})** → <#{ch_id}>"
-
         elif t.kind == "logs":
             store.set_logs_channel(guild_id, ch_id)
             msg = f"✅ Saved: **Logs** → <#{ch_id}>"
-
-        else:  # announcements
+        else:
             store.set_announcements_channel(guild_id, ch_id)
             msg = f"✅ Saved: **Announcements** → <#{ch_id}>"
 
@@ -202,6 +194,23 @@ class AdminsCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+    @app_commands.command(name="help", description="List all bot commands")
+    async def help(self, interaction: discord.Interaction):
+        cmds = sorted(self.bot.tree.get_commands(), key=lambda c: c.name)
+
+        lines = []
+        for c in cmds:
+            desc = c.description or "No description"
+            lines.append(f"**/{c.name}** — {desc}")
+
+        embed = discord.Embed(
+            title="📖 Bot Commands",
+            description="\n".join(lines),
+            color=discord.Color.blurple(),
+        )
+
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
     @app_commands.command(
         name="admin_channels",
         description="Interactive setup for bot channels (standings/schedule/logs/announcements)",
@@ -224,6 +233,26 @@ class AdminsCog(commands.Cog):
             "## Current configuration\n" + _build_status(interaction.guild_id),
             ephemeral=True,
         )
+
+    @app_commands.command(name="resync", description="Resync slash commands (admin only)")
+    async def resync(self, interaction: discord.Interaction):
+        if not _is_admin(interaction):
+            await interaction.response.send_message("❌ Admins only.", ephemeral=True)
+            return
+
+        await interaction.response.defer(ephemeral=True)
+
+        guild_id = getattr(settings, "guild_id", None) or interaction.guild_id
+
+        try:
+            if guild_id:
+                await self.bot.tree.sync(guild=discord.Object(id=int(guild_id)))
+                await interaction.followup.send(f"✅ Resynced commands to guild `{guild_id}`.", ephemeral=True)
+            else:
+                await self.bot.tree.sync()
+                await interaction.followup.send("✅ Resynced commands globally.", ephemeral=True)
+        except Exception as e:
+            await interaction.followup.send(f"❌ Resync failed: {e}", ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
