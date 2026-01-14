@@ -22,7 +22,7 @@ async def setup_hook():
     await bot.load_extension("cogs.standings_cog")
     await bot.load_extension("cogs.match_scheduler_cog")
     await bot.load_extension("cogs.match_reminders_cog")
-    await bot.load_extension("cogs.admins_cog")      # <- make sure filename is admins_cog.py
+    await bot.load_extension("cogs.admin_cog")      # <- make sure filename is admins_cog.py
     await bot.load_extension("cogs.scheduling_cog")
 
     # Sync commands: try guild sync if configured + bot is actually in that guild,
