@@ -1,144 +1,41 @@
-# ============================================================
-# bot.py
-# ============================================================
-
-from __future__ import annotations
-
-import sys
-import traceback
-
 import discord
-from discord.ext import commands, tasks
+from discord.ext import commands
 
 from config import settings
-from leagues import configured_leagues
-from services.standings import (
-    fetch_standings_embed_for_league,
-    upsert_league_standings_message,
-)
-from storage import store
-
-
-# ============================================================
-# Bot Class
-# ============================================================
-
-class RLVSBot(commands.Bot):
-    async def setup_hook(self):
-        print("BOOT: setup_hook start", flush=True)
-
-        # ----------------------------
-        # Load Cogs
-        # ----------------------------
-        for ext in [
-            "cogs.standings_cog",
-            "cogs.match_scheduler_cog",
-            "cogs.match_reminders_cog",
-            "cogs.admin_cog",
-            "cogs.scheduling_cog",
-        ]:
-            try:
-                await self.load_extension(ext)
-                print(f"BOOT: loaded {ext}", flush=True)
-            except Exception as e:
-                print(f"BOOT: FAILED loading {ext}: {e}", flush=True)
-                traceback.print_exc()
-                raise
-
-        # ----------------------------
-        # Slash Command Sync
-        # ----------------------------
-        guild_id = int(getattr(settings, "guild_id", 0) or 0)
-
-        try:
-            if guild_id:
-                guild = discord.Object(id=guild_id)
-                self.tree.clear_commands(guild=guild)
-                await self.tree.sync(guild=guild)
-                print(f"[sync] cleared+synced commands to guild_id={guild_id}", flush=True)
-            else:
-                await self.tree.sync()
-                print("[sync] synced commands globally", flush=True)
-        except Exception as e:
-            print(f"[sync] FAILED: {e}", flush=True)
-            traceback.print_exc()
-            raise
-
-        # ----------------------------
-        # Background Tasks
-        # ----------------------------
-        if not poll.is_running():
-            poll.start()
-            print("BOOT: poll started", flush=True)
-
-
-# ============================================================
-# Intents / Bot Init
-# ============================================================
 
 intents = discord.Intents.default()
-bot = RLVSBot(command_prefix="!", intents=intents)
 
-print("BOOT: bot.py loaded", flush=True)
+bot = commands.Bot(
+    command_prefix="!",
+    intents=intents,
+)
 
+print("Starting bot.py…")
 
-# ============================================================
-# Events
-# ============================================================
 
 @bot.event
-async def on_ready():
-    print(f"READY: Logged in as {bot.user} (id={bot.user.id})", flush=True)
-    try:
-        print("[guilds] Bot is in:", flush=True)
-        for g in bot.guilds:
-            print(f" - {g.name} ({g.id})", flush=True)
-    except Exception:
-        pass
+async def setup_hook():
+    print("BOOT: setup_hook start")
 
+    # Load cogs
+    await bot.load_extension("cogs.standings_cog")
+    await bot.load_extension("cogs.match_scheduler_cog")
+    await bot.load_extension("cogs.match_reminders_cog")
+    await bot.load_extension("cogs.admin_cog")
+    await bot.load_extension("cogs.scheduling_cog")
 
-# ============================================================
-# Poll Task
-# ============================================================
+    # Slash command sync
+    if settings.guild_id:
+        guild = discord.Object(id=int(settings.guild_id))
 
-@tasks.loop(seconds=settings.poll_seconds)
-async def poll():
-    leagues = configured_leagues()
-    if not leagues:
-        return
+        # Push global commands into the guild (instant availability)
+        bot.tree.copy_global_to(guild=guild)
 
-    guild_id = int(getattr(settings, "guild_id", 0) or 0)
-    if not guild_id and bot.guilds:
-        guild_id = int(bot.guilds[0].id)
+        # Clear stale guild commands
+        bot.tree.clear_commands(guild=guild)
 
-    if not guild_id:
-        return
-
-    for league in leagues:
-        try:
-            key, embed = await fetch_standings_embed_for_league(league)
-            last = store.get_last_hash(league.key)
-            if last == key:
-                continue
-
-            store.set_last_hash(league.key, key)
-            await upsert_league_standings_message(bot, guild_id, league, embed)
-        except Exception as e:
-            print(f"[poll] {league.name}: {e}", flush=True)
-
-
-# ============================================================
-# Run
-# ============================================================
-
-def run():
-    try:
-        sys.stdout.reconfigure(line_buffering=True)
-    except Exception:
-        pass
-
-    bot.run(settings.discord_token)
-
-
-if __name__ == "__main__":
-    run()
+        synced = await bot.tree.sync(guild=guild)
+        print(f"[sync] cleared+synced {len(synced)} commands to guild_id={settings.guild_id}")
+    else:
+        synced = await bot.tree.sync()
+        print(f"[sync] synced {len(synced)} commands globally")
