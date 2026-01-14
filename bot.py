@@ -9,7 +9,6 @@ from leagues import configured_leagues
 from services.standings import fetch_standings_embed_for_league, upsert_league_standings_message
 from storage import store
 
-
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -22,25 +21,22 @@ async def setup_hook():
     await bot.load_extension("cogs.standings_cog")
     await bot.load_extension("cogs.match_scheduler_cog")
     await bot.load_extension("cogs.match_reminders_cog")
-    await bot.load_extension("cogs.admin_cog")      # <- make sure filename is admins_cog.py
+    await bot.load_extension("cogs.admin_cog")
     await bot.load_extension("cogs.scheduling_cog")
 
-    # Sync commands: try guild sync if configured + bot is actually in that guild,
-    # otherwise fall back to global sync. Never hard-crash on Forbidden.
+    # Sync commands:
+    # - If GUILD_ID is set, ONLY sync to that guild (prevents “two commands” from global+guild).
+    # - If not set, sync globally.
     guild_id = getattr(settings, "guild_id", None)
 
     if guild_id:
-        g = bot.get_guild(int(guild_id))
-        if g is None:
-            print(f"[sync] Skipping guild sync: bot is not in guild_id={guild_id}. Falling back to global sync.")
-        else:
-            try:
-                await bot.tree.sync(guild=discord.Object(id=int(guild_id)))
-                print(f"[sync] Synced commands to guild_id={guild_id}")
-            except discord.Forbidden as e:
-                print(f"[sync] Forbidden syncing to guild_id={guild_id}: {e}. Falling back to global sync.")
-                await bot.tree.sync()
-                print("[sync] Synced commands globally")
+        try:
+            await bot.tree.sync(guild=discord.Object(id=int(guild_id)))
+            print(f"[sync] Synced commands to guild_id={guild_id}")
+        except discord.Forbidden as e:
+            print(f"[sync] Forbidden syncing to guild_id={guild_id}: {e}")
+        except Exception as e:
+            print(f"[sync] Error syncing to guild_id={guild_id}: {e}")
     else:
         await bot.tree.sync()
         print("[sync] Synced commands globally")
@@ -52,7 +48,6 @@ async def setup_hook():
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user} (id={bot.user.id})")
-    # Helpful to debug Render guild_id issues
     try:
         print("[guilds] Bot is in:")
         for g in bot.guilds:

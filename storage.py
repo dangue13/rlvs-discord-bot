@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 
 from config import settings
 
+
 @dataclass
 class GuildConfig:
     guild_id: int
@@ -62,7 +63,7 @@ class StateStore:
         self.save()
 
     # -------------------------
-    # Per-guild admin config
+    # Per-guild bucket helpers
     # -------------------------
     def _guild_bucket(self, guild_id: int) -> Dict[str, Any]:
         guilds = self._state.setdefault("guilds", {})
@@ -76,6 +77,9 @@ class StateStore:
             guilds[str(guild_id)] = bucket
         return bucket
 
+    # -------------------------
+    # Per-guild admin config
+    # -------------------------
     def get_guild_config(self, guild_id: int) -> GuildConfig:
         b = self._guild_bucket(guild_id)
         return GuildConfig(
@@ -101,11 +105,6 @@ class StateStore:
 
         self.save()
 
-    def set_scheduler_enabled(self, guild_id: int, enabled: bool) -> None:
-        b = self._guild_bucket(guild_id)
-        b["scheduler_enabled"] = bool(enabled)
-        self.save()
-
     def get_channel(self, guild_id: int, channel_type: str) -> Optional[int]:
         cfg = self.get_guild_config(guild_id)
         channel_type = channel_type.lower()
@@ -118,7 +117,12 @@ class StateStore:
             return cfg.announcements_channel_id
 
         raise ValueError(f"Unknown channel_type: {channel_type}")
-    
+
+    def set_scheduler_enabled(self, guild_id: int, enabled: bool) -> None:
+        b = self._guild_bucket(guild_id)
+        b["scheduler_enabled"] = bool(enabled)
+        self.save()
+
     # -------------------------
     # Schedule (per guild, per league)
     # -------------------------
@@ -187,23 +191,9 @@ class StateStore:
         weeks[str(league_key)] = int(week)
         self.save()
 
-
-    
     # -------------------------
-    # Per-guild channels (with per-league standings channels)
+    # Per-guild channels (per-league standings channels)
     # -------------------------
-    def _guild_bucket(self, guild_id: int) -> Dict[str, Any]:
-        guilds = self._state.setdefault("guilds", {})
-        if not isinstance(guilds, dict):
-            guilds = {}
-            self._state["guilds"] = guilds
-
-        bucket = guilds.setdefault(str(guild_id), {})
-        if not isinstance(bucket, dict):
-            bucket = {}
-            guilds[str(guild_id)] = bucket
-        return bucket
-
     def set_logs_channel(self, guild_id: int, channel_id: int) -> None:
         b = self._guild_bucket(guild_id)
         b["logs_channel_id"] = int(channel_id)
@@ -260,10 +250,10 @@ class StateStore:
             standings = {}
             self._state["standings"] = standings
 
-        bucket = standings.setdefault(league_key, {})
+        bucket = standings.setdefault(str(league_key), {})
         if not isinstance(bucket, dict):
             bucket = {}
-            standings[league_key] = bucket
+            standings[str(league_key)] = bucket
         return bucket
 
     def get_last_hash(self, league_key: str) -> Optional[str]:
@@ -292,7 +282,7 @@ class StateStore:
         self.save()
 
     # -------------------------
-    # scheduled_matches (unchanged)
+    # scheduled_matches
     # -------------------------
     def get_scheduled_matches(self) -> List[Dict[str, Any]]:
         matches = self._state.get("scheduled_matches", [])

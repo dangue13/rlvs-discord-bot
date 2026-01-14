@@ -82,11 +82,11 @@ def parse_standings(html: str) -> List[Row]:
                 raise RuntimeError
 
             TEAM_COL = col("TEAM")
-            WL_COL   = col("W-L", "W – L", "W/L")
-            GW_COL   = col("GAMES WON", "WON")
-            GL_COL   = col("GAMES LOST", "LOST")
-            PM_COL   = col("+/-", "+/−", "+−", "DIFF")
-            GB_COL   = col("GB")
+            WL_COL = col("W-L", "W – L", "W/L")
+            GW_COL = col("GAMES WON", "WON")
+            GL_COL = col("GAMES LOST", "LOST")
+            PM_COL = col("+/-", "+/−", "+−", "DIFF")
+            GB_COL = col("GB")
 
             data_rows = rows[header_idx + 1 :]
         except Exception:
@@ -111,11 +111,11 @@ def parse_standings(html: str) -> List[Row]:
 
         rank = int(rank_raw)
         team = get_cell(cells, TEAM_COL)
-        wl   = get_cell(cells, WL_COL)
-        gw   = get_cell(cells, GW_COL, "0")
-        gl   = get_cell(cells, GL_COL, "0")
-        pm   = get_cell(cells, PM_COL, "0")
-        gb   = get_cell(cells, GB_COL, "-")
+        wl = get_cell(cells, WL_COL)
+        gw = get_cell(cells, GW_COL, "0")
+        gl = get_cell(cells, GL_COL, "0")
+        pm = get_cell(cells, PM_COL, "0")
+        gb = get_cell(cells, GB_COL, "-")
 
         if gb in {"—", ""}:
             gb = "-"
@@ -131,7 +131,12 @@ def parse_standings(html: str) -> List[Row]:
     return parsed
 
 
-def build_standings_embed(rows: List[Row], standings_url: str, top_n: int = 12) -> Tuple[str, discord.Embed]:
+def build_standings_embed(
+    rows: List[Row],
+    standings_url: str,
+    league_name: str,
+    top_n: int = 12,
+) -> Tuple[str, discord.Embed]:
     key = _sha(json.dumps(rows, ensure_ascii=False))
 
     lines: List[str] = []
@@ -143,7 +148,7 @@ def build_standings_embed(rows: List[Row], standings_url: str, top_n: int = 12) 
         lines.append(f"**{rank}. {team}**  •  `{wl}`  •  `GB {gb}`")
 
     embed = discord.Embed(
-        title="🏆 Velocity Series Standings",
+        title=f"🏆 {league_name} Standings",
         description="\n\n".join(lines) if lines else "—",
         url=standings_url,
         color=discord.Color.blue(),
@@ -156,7 +161,7 @@ def build_standings_embed(rows: List[Row], standings_url: str, top_n: int = 12) 
 async def fetch_standings_embed_for_league(league: League) -> Tuple[str, discord.Embed]:
     html = await http.fetch_html(league.standings_url)
     rows = parse_standings(html)
-    return build_standings_embed(rows, standings_url=league.standings_url)
+    return build_standings_embed(rows, standings_url=league.standings_url, league_name=league.name)
 
 
 async def _get_text_channel(bot: discord.Client, channel_id: int) -> discord.TextChannel:
