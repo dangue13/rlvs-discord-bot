@@ -53,7 +53,6 @@ class RLVSBot(commands.Bot):
         try:
             if guild_id:
                 guild = discord.Object(id=guild_id)
-                self.tree.copy_global_to(guild=guild)
                 await self.tree.sync(guild=guild)
                 print(f"[sync] synced commands to guild_id={guild_id}", flush=True)
             else:
