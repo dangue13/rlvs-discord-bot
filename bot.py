@@ -18,10 +18,12 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 print("BOOT: bot.py loaded", flush=True)
 
-_DID_SYNC = False
 
+@bot.event
+async def setup_hook():
+    print("BOOT: setup_hook start", flush=True)
 
-async def _load_extensions() -> None:
+    # Load cogs one-by-one so failures are visible
     for ext in [
         "cogs.standings_cog",
         "cogs.match_scheduler_cog",
@@ -37,36 +39,21 @@ async def _load_extensions() -> None:
             traceback.print_exc()
             raise
 
-
-async def _sync_commands() -> None:
-    global _DID_SYNC
-    if _DID_SYNC:
-        return
-
-    guild_id = getattr(settings, "guild_id", 0) or 0
-
+    # Sync commands (DEV: clear+sync to guild for immediate updates)
+    guild_id = int(getattr(settings, "guild_id", 0) or 0)
     try:
         if guild_id:
-            g = discord.Object(id=int(guild_id))
+            g = discord.Object(id=guild_id)
             bot.tree.clear_commands(guild=g)
             await bot.tree.sync(guild=g)
-            print(f"[sync] cleared+synced guild commands to {guild_id}", flush=True)
+            print(f"[sync] Cleared+synced commands to guild_id={guild_id}", flush=True)
         else:
             await bot.tree.sync()
-            print("[sync] synced global commands", flush=True)
-
-        _DID_SYNC = True
+            print("[sync] Synced commands globally", flush=True)
     except Exception as e:
         print(f"[sync] FAILED: {e}", flush=True)
         traceback.print_exc()
         raise
-
-
-@bot.event
-async def setup_hook():
-    print("BOOT: setup_hook start", flush=True)
-    await _load_extensions()
-    await _sync_commands()
 
     if not poll.is_running():
         poll.start()
@@ -90,9 +77,11 @@ async def poll():
     if not leagues:
         return
 
+    # single-guild bot: use configured guild_id if provided, else first guild
     guild_id = int(getattr(settings, "guild_id", 0) or 0)
     if not guild_id and bot.guilds:
         guild_id = int(bot.guilds[0].id)
+
     if not guild_id:
         return
 
