@@ -1,5 +1,8 @@
 # config.py
 from __future__ import annotations
+# config.py
+__version__ = "1.0.0"
+
 
 from dotenv import load_dotenv
 load_dotenv()

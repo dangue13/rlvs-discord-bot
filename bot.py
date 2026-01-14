@@ -1,4 +1,7 @@
 from __future__ import annotations
+from config import __version__
+
+print(f"BOOT: RLVS Bot starting — version {__version__}")
 
 import os
 import asyncio
