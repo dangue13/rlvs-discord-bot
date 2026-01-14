@@ -1,4 +1,7 @@
+# ============================================================
 # cogs/match_scheduler_cog.py
+# ============================================================
+
 from __future__ import annotations
 
 import re
@@ -20,6 +23,10 @@ from cogs.scheduling_cog import update_schedule_board, post_matches_for_league
 from services.http import http
 from services.standings import parse_standings
 
+
+# ============================================================
+# Constants
+# ============================================================
 
 TZ = settings.league_tz if getattr(settings, "league_tz", None) else timezone.utc
 
@@ -75,12 +82,11 @@ def _league_by_key_or_name(value: str) -> League:
 
 
 def _league_choices() -> List[app_commands.Choice[str]]:
-    # This is what creates the dropdown for /schedule league
     return [app_commands.Choice(name=lg.name, value=lg.key) for lg in configured_leagues()]
 
 
 # ============================================================
-# Standings Integration (Team Autocomplete)
+# Standings Integration (Autocomplete)
 # ============================================================
 
 async def _team_names_for_league(league: League) -> List[str]:
@@ -107,8 +113,10 @@ async def _team_names_for_league(league: League) -> List[str]:
     return uniq
 
 
-async def _team_autocomplete(interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
-    # interaction.namespace.league is available once the user selects the league
+async def _team_autocomplete(
+    interaction: discord.Interaction,
+    current: str,
+) -> List[app_commands.Choice[str]]:
     league_val = getattr(interaction.namespace, "league", None)
     if not league_val:
         return []
@@ -138,7 +146,9 @@ def _parse_mmdd_time(date_mmdd: str, time_str: str) -> datetime:
     m = _DATE_RE.match(date_mmdd)
     t = _TIME_RE.match(time_str)
     if not m or not t:
-        raise ValueError("Invalid date or time format. Use M/D and H:MMam/pm (e.g. 1/14 and 9:30pm).")
+        raise ValueError(
+            "Invalid date or time format. Use M/D and H:MMam/pm (e.g. 1/14 and 9:30pm)."
+        )
 
     month, day = int(m[1]), int(m[2])
     hour, minute, ampm = int(t[1]), int(t[2]), t[3].lower()
@@ -174,19 +184,29 @@ def _new_match_id(existing: set[str]) -> str:
             return mid
 
 
-def _find_match(matches: List[Dict[str, Any]], match_id: str) -> Optional[Dict[str, Any]]:
+def _find_match(
+    matches: List[Dict[str, Any]],
+    match_id: str,
+) -> Optional[Dict[str, Any]]:
     mid = match_id.strip().upper()
-    return next((m for m in matches if str(m.get("id", "")).upper() == mid), None)
+    return next(
+        (m for m in matches if str(m.get("id", "")).upper() == mid),
+        None,
+    )
 
 
 # ============================================================
-# Match Scheduler Cog
+# Cog
 # ============================================================
 
 class MatchSchedulerCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
+    # ----------------------------
+    # /schedule
+    # ----------------------------
+    @app_commands.guilds(discord.Object(id=settings.guild_id))
     @app_commands.command(name="schedule", description="Schedule a match")
     @app_commands.choices(league=_league_choices())
     @app_commands.autocomplete(team=_team_autocomplete, opponent=_team_autocomplete)
@@ -238,7 +258,14 @@ class MatchSchedulerCog(commands.Cog):
             ephemeral=True,
         )
 
-    @app_commands.command(name="postmatches", description="Post scheduled matches for all leagues")
+    # ----------------------------
+    # /postmatches
+    # ----------------------------
+    @app_commands.guilds(discord.Object(id=settings.guild_id))
+    @app_commands.command(
+        name="postmatches",
+        description="Post scheduled matches for all leagues",
+    )
     async def postmatches(self, interaction: discord.Interaction):
         await interaction.response.defer(ephemeral=True)
 
@@ -246,27 +273,50 @@ class MatchSchedulerCog(commands.Cog):
         for lg in configured_leagues():
             await post_matches_for_league(self.bot, guild_id, lg.key)
 
-        await interaction.followup.send("✅ Match boards posted/updated.", ephemeral=True)
+        await interaction.followup.send(
+            "✅ Match boards posted/updated.",
+            ephemeral=True,
+        )
 
-    @app_commands.command(name="cancelmatch", description="Cancel a scheduled match by ID")
+    # ----------------------------
+    # /cancelmatch
+    # ----------------------------
+    @app_commands.guilds(discord.Object(id=settings.guild_id))
+    @app_commands.command(
+        name="cancelmatch",
+        description="Cancel a scheduled match by ID",
+    )
     async def cancelmatch(self, interaction: discord.Interaction, match_id: str):
         await interaction.response.defer(ephemeral=True)
 
         matches = _load_matches()
         m = _find_match(matches, match_id)
         if not m:
-            return await interaction.followup.send("Match not found.", ephemeral=True)
+            return await interaction.followup.send(
+                "Match not found.",
+                ephemeral=True,
+            )
 
         guild_id = int(interaction.guild_id or 0)
         league_key = str(m.get("league", "")).lower()
 
-        new_matches = [x for x in matches if str(x.get("id", "")).upper() != str(m.get("id", "")).upper()]
+        new_matches = [
+            x for x in matches
+            if str(x.get("id", "")).upper() != str(m.get("id", "")).upper()
+        ]
         _save_matches(new_matches)
 
         await update_schedule_board(self.bot, guild_id, league_key)
 
-        await interaction.followup.send(f"🗑️ Match `{match_id.strip().upper()}` cancelled.", ephemeral=True)
+        await interaction.followup.send(
+            f"🗑️ Match `{match_id.strip().upper()}` cancelled.",
+            ephemeral=True,
+        )
 
+
+# ============================================================
+# Setup
+# ============================================================
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(MatchSchedulerCog(bot))

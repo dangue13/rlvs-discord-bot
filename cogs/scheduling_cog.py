@@ -1,4 +1,7 @@
+# ============================================================
 # cogs/scheduling_cog.py
+# ============================================================
+
 from __future__ import annotations
 
 from datetime import datetime
@@ -10,10 +13,18 @@ from discord.ext import commands
 from storage import store
 
 
+# ============================================================
+# Helpers
+# ============================================================
+
 def _fmt_match(m: Dict) -> str:
     ts = int(datetime.fromisoformat(m["scheduled_iso"]).timestamp())
     return f"• **{m['team']}** vs **{m['opponent']}** — <t:{ts}:F> (`{m['id']}`)"
 
+
+# ============================================================
+# Schedule Board
+# ============================================================
 
 async def update_schedule_board(bot: commands.Bot, guild_id: int, league_key: str):
     channel_id = store.get_schedule_channel(guild_id, league_key)
@@ -48,9 +59,17 @@ async def update_schedule_board(bot: commands.Bot, guild_id: int, league_key: st
     store.set_schedule_message_id(guild_id, league_key, msg.id)
 
 
+# ============================================================
+# Public Helper
+# ============================================================
+
 async def post_matches_for_league(bot: commands.Bot, guild_id: int, league_key: str):
     await update_schedule_board(bot, guild_id, league_key)
 
+
+# ============================================================
+# Setup
+# ============================================================
 
 async def setup(bot: commands.Bot):
     pass
