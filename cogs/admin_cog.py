@@ -44,24 +44,23 @@ def _build_status(guild_id: int) -> str:
     logs = store.get_logs_channel(guild_id)
     ann = store.get_announcements_channel(guild_id)
 
-    lines = [
-        f"**Standings (Champion):** {_fmt_channel(champ_st)}",
-        f"**Standings (Challenger):** {_fmt_channel(chal_st)}",
-        f"**Schedule (Champion):** {_fmt_channel(champ_sched)}",
-        f"**Schedule (Challenger):** {_fmt_channel(chal_sched)}",
-        f"**Logs:** {_fmt_channel(logs)}",
-        f"**Announcements:** {_fmt_channel(ann)}",
-    ]
-    return "\n".join(lines)
+    return "\n".join(
+        [
+            f"**Standings (Champion):** {_fmt_channel(champ_st)}",
+            f"**Standings (Challenger):** {_fmt_channel(chal_st)}",
+            f"**Schedule (Champion):** {_fmt_channel(champ_sched)}",
+            f"**Schedule (Challenger):** {_fmt_channel(chal_sched)}",
+            f"**Logs:** {_fmt_channel(logs)}",
+            f"**Announcements:** {_fmt_channel(ann)}",
+        ]
+    )
 
 
 def _target_label(t: Optional[_ChannelTarget]) -> str:
     if not t:
         return "None selected"
-    if t.kind == "standings":
-        return f"Standings — {t.league_key}"
-    if t.kind == "schedule":
-        return f"Schedule — {t.league_key}"
+    if t.kind in ("standings", "schedule"):
+        return f"{t.kind.capitalize()} — {t.league_key}"
     return t.kind.capitalize()
 
 
@@ -95,34 +94,28 @@ class _AdminChannelsView(discord.ui.View):
 class _TargetSelect(discord.ui.Select):
     def __init__(self, parent: _AdminChannelsView):
         self.parent_view = parent
-        options = [
-            discord.SelectOption(label="Standings — Champion", value="standings:champion"),
-            discord.SelectOption(label="Standings — Challenger", value="standings:challenger"),
-            discord.SelectOption(label="Schedule — Champion", value="schedule:champion"),
-            discord.SelectOption(label="Schedule — Challenger", value="schedule:challenger"),
-            discord.SelectOption(label="Logs", value="logs"),
-            discord.SelectOption(label="Announcements", value="announcements"),
-        ]
         super().__init__(
             placeholder="What do you want to configure?",
             min_values=1,
             max_values=1,
-            options=options,
+            options=[
+                discord.SelectOption(label="Standings — Champion", value="standings:champion"),
+                discord.SelectOption(label="Standings — Challenger", value="standings:challenger"),
+                discord.SelectOption(label="Schedule — Champion", value="schedule:champion"),
+                discord.SelectOption(label="Schedule — Challenger", value="schedule:challenger"),
+                discord.SelectOption(label="Logs", value="logs"),
+                discord.SelectOption(label="Announcements", value="announcements"),
+            ],
         )
 
     async def callback(self, interaction: discord.Interaction):
         raw = self.values[0]
 
-        if raw.startswith("standings:"):
-            league = raw.split(":", 1)[1]
-            self.parent_view.target = _ChannelTarget(kind="standings", league_key=league)  # type: ignore[arg-type]
-        elif raw.startswith("schedule:"):
-            league = raw.split(":", 1)[1]
-            self.parent_view.target = _ChannelTarget(kind="schedule", league_key=league)  # type: ignore[arg-type]
-        elif raw == "logs":
-            self.parent_view.target = _ChannelTarget(kind="logs")
+        if ":" in raw:
+            kind, league = raw.split(":", 1)
+            self.parent_view.target = _ChannelTarget(kind=kind, league_key=league)  # type: ignore[arg-type]
         else:
-            self.parent_view.target = _ChannelTarget(kind="announcements")
+            self.parent_view.target = _ChannelTarget(kind=raw)
 
         await interaction.response.edit_message(
             content=self.parent_view.render_content(),
@@ -141,8 +134,7 @@ class _ChannelSelect(discord.ui.ChannelSelect):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        ch = self.values[0]
-        self.parent_view.selected_channel_id = ch.id
+        self.parent_view.selected_channel_id = self.values[0].id
         await interaction.response.edit_message(
             content=self.parent_view.render_content(),
             view=self.parent_view,
@@ -158,39 +150,29 @@ class _SaveButton(discord.ui.Button):
         t = self.parent_view.target
         ch_id = self.parent_view.selected_channel_id
 
-        if not t:
+        if not t or not ch_id:
             await interaction.response.send_message(
-                "Pick **what** you’re configuring first.",
-                ephemeral=True,
-            )
-            return
-        if not ch_id:
-            await interaction.response.send_message(
-                "Pick a **channel** first.",
+                "Pick a **target** and a **channel** first.",
                 ephemeral=True,
             )
             return
 
-        guild_id = self.parent_view.guild_id
+        gid = self.parent_view.guild_id
 
         if t.kind == "standings":
-            store.set_standings_channel(guild_id, t.league_key, ch_id)
-            msg = f"✅ Saved: **Standings ({t.league_key})** → <#{ch_id}>"
+            store.set_standings_channel(gid, t.league_key, ch_id)
         elif t.kind == "schedule":
-            store.set_schedule_channel(guild_id, t.league_key, ch_id)
-            msg = f"✅ Saved: **Schedule ({t.league_key})** → <#{ch_id}>"
+            store.set_schedule_channel(gid, t.league_key, ch_id)
         elif t.kind == "logs":
-            store.set_logs_channel(guild_id, ch_id)
-            msg = f"✅ Saved: **Logs** → <#{ch_id}>"
+            store.set_logs_channel(gid, ch_id)
         else:
-            store.set_announcements_channel(guild_id, ch_id)
-            msg = f"✅ Saved: **Announcements** → <#{ch_id}>"
+            store.set_announcements_channel(gid, ch_id)
 
         await interaction.response.edit_message(
             content=self.parent_view.render_content(),
             view=self.parent_view,
         )
-        await interaction.followup.send(msg, ephemeral=True)
+        await interaction.followup.send("✅ Configuration saved.", ephemeral=True)
 
 
 class _CloseButton(discord.ui.Button):
@@ -215,35 +197,19 @@ class AdminsCog(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    # ----------------------------
-    # /help
-    # ----------------------------
-    @app_commands.guilds(discord.Object(id=settings.guild_id))
     @app_commands.command(name="help", description="List all bot commands")
     async def help(self, interaction: discord.Interaction):
         cmds = sorted(self.bot.tree.get_commands(), key=lambda c: c.name)
-
-        lines = []
-        for c in cmds:
-            desc = c.description or "No description"
-            lines.append(f"**/{c.name}** — {desc}")
+        desc = "\n".join(f"**/{c.name}** — {c.description or 'No description'}" for c in cmds)
 
         embed = discord.Embed(
             title="📖 Bot Commands",
-            description="\n".join(lines),
+            description=desc,
             color=discord.Color.blurple(),
         )
-
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    # ----------------------------
-    # /admin_channels
-    # ----------------------------
-    @app_commands.guilds(discord.Object(id=settings.guild_id))
-    @app_commands.command(
-        name="admin_channels",
-        description="Interactive setup for bot channels",
-    )
+    @app_commands.command(name="admin_channels", description="Interactive setup for bot channels")
     async def admin_channels(self, interaction: discord.Interaction):
         if not _is_admin(interaction):
             await interaction.response.send_message("❌ Admins only.", ephemeral=True)
@@ -256,14 +222,7 @@ class AdminsCog(commands.Cog):
             view=view,
         )
 
-    # ----------------------------
-    # /admin_status
-    # ----------------------------
-    @app_commands.guilds(discord.Object(id=settings.guild_id))
-    @app_commands.command(
-        name="admin_status",
-        description="Show current bot channel configuration",
-    )
+    @app_commands.command(name="admin_status", description="Show current bot channel configuration")
     async def admin_status(self, interaction: discord.Interaction):
         if not _is_admin(interaction):
             await interaction.response.send_message("❌ Admins only.", ephemeral=True)
@@ -274,10 +233,6 @@ class AdminsCog(commands.Cog):
             ephemeral=True,
         )
 
-    # ----------------------------
-    # /resync
-    # ----------------------------
-    @app_commands.guilds(discord.Object(id=settings.guild_id))
     @app_commands.command(name="resync", description="Resync slash commands (admin only)")
     async def resync(self, interaction: discord.Interaction):
         if not _is_admin(interaction):
@@ -286,31 +241,17 @@ class AdminsCog(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
 
-        guild_id = getattr(settings, "guild_id", None) or interaction.guild_id
+        guild = discord.Object(id=int(settings.guild_id))
+        self.bot.tree.clear_commands(guild=guild)
+        self.bot.tree.copy_global_to(guild=guild)
+        await self.bot.tree.sync(guild=guild)
 
-        try:
-            if guild_id:
-                await self.bot.tree.sync(guild=discord.Object(id=int(guild_id)))
-                await interaction.followup.send(
-                    f"✅ Resynced commands to guild `{guild_id}`.",
-                    ephemeral=True,
-                )
-            else:
-                await self.bot.tree.sync()
-                await interaction.followup.send(
-                    "✅ Resynced commands globally.",
-                    ephemeral=True,
-                )
-        except Exception as e:
-            await interaction.followup.send(
-                f"❌ Resync failed: {e}",
-                ephemeral=True,
-            )
+        await interaction.followup.send("✅ Commands resynced.", ephemeral=True)
+
+
 # ============================================================
 # Setup
 # ============================================================
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(AdminsCog(bot))
-
-
